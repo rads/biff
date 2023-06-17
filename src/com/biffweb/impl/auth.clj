@@ -9,7 +9,6 @@
             ;[com.biffweb :as biff]
             [clj-http.client :as http]
             [clojure.string :as str]
-            [rum.core :as rum]
             [xtdb.api :as xt]))
 
 (defn passed-recaptcha? [{:keys [biff/secret biff.recaptcha/threshold params]

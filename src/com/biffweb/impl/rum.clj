@@ -2,13 +2,15 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [com.biffweb.impl.util :as util]
-            [ring.middleware.anti-forgery :as anti-forgery]
-            [rum.core :as rum]))
+            [ring.middleware.anti-forgery :as anti-forgery]))
+
+(defn render-static-markup [el]
+  ((requiring-resolve 'rum.core/render-static-markup) el))
 
 (defn render [body]
   {:status 200
    :headers {"content-type" "text/html; charset=utf-8"}
-   :body (str "<!DOCTYPE html>\n" (rum/render-static-markup body))})
+   :body (str "<!DOCTYPE html>\n" (render-static-markup body))})
 
 (defn unsafe [html]
   {:dangerouslySetInnerHTML {:__html html}})
@@ -95,4 +97,4 @@
           :let [full-path (cond-> (str dir path)
                             (str/ends-with? path "/") (str "index.html"))]]
     (io/make-parents full-path)
-    (spit full-path (str "<!DOCTYPE html>\n" (rum/render-static-markup rum)))))
+    (spit full-path (str "<!DOCTYPE html>\n" (render-static-markup rum)))))

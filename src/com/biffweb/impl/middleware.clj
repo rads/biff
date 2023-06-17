@@ -1,6 +1,7 @@
 (ns com.biffweb.impl.middleware
   (:require [clojure.string :as str]
             [clojure.tools.logging :as log]
+            [com.biffweb.impl.rum :as brum]
             [com.biffweb.impl.util :as util]
             [com.biffweb.impl.xtdb :as bxt]
             [muuntaja.middleware :as muuntaja]
@@ -10,8 +11,7 @@
             [ring.middleware.resource :as res]
             [ring.middleware.session :as session]
             [ring.middleware.session.cookie :as cookie]
-            [ring.middleware.ssl :as ssl]
-            [rum.core :as rum]))
+            [ring.middleware.ssl :as ssl]))
 
 (defn wrap-debug [handler]
   (fn [ctx]
@@ -37,7 +37,7 @@
       (if (vector? response)
         {:status 200
          :headers {"content-type" "text/html"}
-         :body (str "<!DOCTYPE html>\n" (rum/render-static-markup response))}
+         :body (str "<!DOCTYPE html>\n" (brum/render-static-markup response))}
         response))))
 
 ;; Deprecated; wrap-resource does this inline now.
