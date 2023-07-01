@@ -24,9 +24,9 @@
     (.encodeToString (java.util.Base64/getEncoder) buffer)))
 
 (defn generate-secrets
-  "Prints new values to put in secrets.env."
+  "Prints new values to put in secrets.edn."
   []
-  (println "Put these in your secrets.env file:")
+  (println "Put these in your secrets.edn file:")
   (println)
   (println (str "export COOKIE_SECRET=" (new-secret 16)))
   (println (str "export JWT_SECRET=" (new-secret 32)))
@@ -111,9 +111,17 @@
        (some-> s (str/replace "'" "'\"'\"'"))
        \'))
 
+(defn write-secrets-env []
+  (spit "secrets.env"
+        (->> (edn/read-string (slurp "secrets.edn"))
+             (map (fn [[k v]] (format "export %s=%s" (name k) (shell-escape v))))
+             (str/join "\n"))))
+
 (defn run-cmd
   "Internal. Used by the server to start the app."
   []
+  (when (fs/exists? "secrets.edn")
+    (write-secrets-env))
   (let [commands (filter some?
                          ["mkdir -p target/resources"
                           (when (fs/exists? "package.json")
@@ -137,19 +145,8 @@
                  args)))
 
 (defn secrets []
-  (when (fs/exists? "secrets.env")
-    (->> (slurp "secrets.env")
-         str/split-lines
-         (keep (fn [s]
-                 (some-> s
-                         (str/replace #"^export\s+" "")
-                         (str/replace #"#.*" "")
-                         str/trim
-                         not-empty)))
-         (filter #(str/includes? % "="))
-         (map #(vec (str/split % #"=" 2)))
-         (map (fn [[k v]] [k (str/replace v #"^'(.+)'$" "$1")]))
-         (into {}))))
+  (when (fs/exists? "secrets.edn")
+    (edn/read-string (slurp "secrets.edn"))))
 
 (defn dev
   "Starts the app locally.
@@ -203,18 +200,18 @@
       (do
         (shell-some "scp"
                     "config.edn"
-                    (when (fs/exists? "secrets.env") "secrets.env")
+                    (when (fs/exists? "secrets.edn") "secrets.edn")
                     (str "app@" server ":"))
         (shell "ssh" (str "app@" server) "mkdir" "-p" "target/resources/public/css/")
         (shell "scp" "target/resources/public/css/main.css"
                (str "app@" server ":target/resources/public/css/main.css")))
       (do
         (fs/set-posix-file-permissions "config.edn" "rw-------")
-        (when (fs/exists? "secrets.env")
-          (fs/set-posix-file-permissions "secrets.env" "rw-------"))
+        (when (fs/exists? "secrets.edn")
+          (fs/set-posix-file-permissions "secrets.edn" "rw-------"))
         (shell-some "rsync" "-a" "--relative"
                     "config.edn"
-                    (when (fs/exists? "secrets.env") "secrets.env")
+                    (when (fs/exists? "secrets.edn") "secrets.edn")
                     "target/resources/public/css/main.css"
                     (str "app@" server ":"))))
     (time (if deploy-cmd
@@ -243,12 +240,12 @@
                    (map #(str/replace % #"/.*" ""))
                    distinct
                    (concat ["config.edn"
-                            "secrets.env"])
+                            "secrets.edn"])
                    (filter fs/exists?))]
     (when-not (windows?)
       (fs/set-posix-file-permissions "config.edn" "rw-------")
-      (when (fs/exists? "secrets.env")
-        (fs/set-posix-file-permissions "secrets.env" "rw-------")))
+      (when (fs/exists? "secrets.edn")
+        (fs/set-posix-file-permissions "secrets.edn" "rw-------")))
     (->> (concat ["rsync" "-a" "--info=name1" "--include='**.gitignore'"
                   "--exclude='/.git'" "--filter=:- .gitignore" "--delete-after"]
                  files
