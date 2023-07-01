@@ -148,6 +148,7 @@
                          not-empty)))
          (filter #(str/includes? % "="))
          (map #(vec (str/split % #"=" 2)))
+         (map (fn [[k v]] [k (str/replace v #"^'(.+)'$" "$1")]))
          (into {}))))
 
 (defn dev
