@@ -271,7 +271,7 @@
 
 ;;; FRONTEND HELPERS -----------------------------------------------------------
 
-(def recaptcha-disclosure
+(defn recaptcha-disclosure []
   [:div {:style {:font-size "0.75rem"
                  :line-height "1rem"
                  :color "#4b5563"}}

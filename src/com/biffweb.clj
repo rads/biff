@@ -2,7 +2,6 @@
   (:require [clojure.java.io :as io]
             [clojure.stacktrace :as st]
             [clojure.string :as str]
-            [com.biffweb.impl.auth :as auth]
             [com.biffweb.impl.middleware :as middle]
             [com.biffweb.impl.misc :as misc]
             [com.biffweb.impl.queues :as q]
@@ -10,8 +9,7 @@
             [com.biffweb.impl.time :as time]
             [com.biffweb.impl.util :as util]
             [com.biffweb.impl.util.ns :as ns]
-            [com.biffweb.impl.util.reload :as reload]
-            [com.biffweb.impl.xtdb :as bxt]))
+            [com.biffweb.impl.util.reload :as reload]))
 
 ;;;; Util
 
@@ -434,6 +432,23 @@
 
 ;;;; XTDB
 
+(defn xtdb-merge-context [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/merge-context) args))
+(defn xtdb-start-node [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/start-node) args))
+(defn xtdb-use-xt [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/use-xt) args))
+(defn xtdb-use-tx-listener [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/use-tx-listener) args))
+(defn xtdb-assoc-db [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/assoc-db) args))
+(defn xtdb-q [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/q) args))
+(defn xtdb-lazy-q [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/lazy-q) args))
+(defn xtdb-lookup [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/lookup) args))
+(defn xtdb-lookup-all [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/lookup-all) args))
+(defn xtdb-lookup-id [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/lookup-id) args))
+(defn xtdb-lookup-id-all [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/lookup-id-all) args))
+(defn xtdb-biff-tx->xt [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/biff-tx->xt) args))
+(defn xtdb-submit-with-retries [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/submit-with-retries) args))
+(defn xtdb-submit-tx [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/submit-tx) args))
+(defn xtdb-save-tx-fns! [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/save-tx-fns!) args))
+(defn xtdb-tx-fns [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/tx-fns) args))
+
 (defn start-node
   "A higher-level version of xtdb.api/start-node.
 
@@ -452,7 +467,7 @@
   [{:keys [topology dir opts jdbc-spec pool-opts kv-store tx-fns]
     :or {kv-store :rocksdb}
     :as options}]
-  (bxt/start-node options))
+  (xtdb-start-node options))
 
 (defn use-xt
   "A Biff component that starts an XTDB node.
@@ -467,7 +482,7 @@
   [{:keys [biff/secret]
     :biff.xtdb/keys [topology kv-store dir opts tx-fns]
     :as ctx}]
-  (bxt/use-xt ctx))
+  (xtdb-use-xt ctx))
 
 (defn use-tx-listener
   "If on-tx or plugins is provided, starts an XTDB transaction listener.
@@ -485,12 +500,12 @@
   transaction is indexed while on-tx is still running, use-tx-listener will
   wait until it finishes before passing the second transaction."
   [{:keys [biff/plugins biff/features biff.xtdb/on-tx biff.xtdb/node] :as ctx}]
-  (bxt/use-tx-listener ctx))
+  (xtdb-use-tx-listener ctx))
 
 (defn assoc-db
   "Sets :biff/db on the context map to (xt/db node)"
   [{:keys [biff.xtdb/node] :as ctx}]
-  (bxt/assoc-db ctx))
+  (xtdb-assoc-db ctx))
 
 (defn q
   "Convenience wrapper for xtdb.api/q.
@@ -499,7 +514,7 @@
   (map first ...). Also throws an exception if (count args) doesn't match
   (count (:in query))."
   [db query & args]
-  (apply bxt/q db query args))
+  (apply xtdb-q db query args))
 
 (defn lazy-q
   "Calls xtdb.api/open-q and passes a lazy seq of the results to a function.
@@ -508,7 +523,7 @@
   function which must process the results eagerly. Also includes the same
   functionality as biff/q."
   [db query & args]
-  (apply bxt/lazy-q db query args))
+  (apply xtdb-lazy-q db query args))
 
 (defn lookup
   "Returns the first document found with the given key(s) and value(s).
@@ -523,12 +538,12 @@
       :msg/_user ({:msg/text \"hello\"}
                   {:msg/text \"how do you do\"})}"
   [db & args]
-  (apply bxt/lookup db args))
+  (apply xtdb-lookup db args))
 
 (defn lookup-all
   "Like lookup, but returns multiple documents."
   [db & args]
-  (apply bxt/lookup-all db args))
+  (apply xtdb-lookup-all db args))
 
 (defn lookup-id
   "Returns the ID of the first document found with the given key(s) and value(s).
@@ -537,18 +552,12 @@
   (lookup-id db :user/email \"hello@example.com\")
   => #uuid \"...\""
   [db & kvs]
-  (apply bxt/lookup-id db kvs))
+  (apply xtdb-lookup-id db kvs))
 
 (defn lookup-id-all
   "Like lookup-id, but returns multiple documents."
   [db & kvs]
-  (apply bxt/lookup-id-all db kvs))
-
-(def ^:nodoc tx-xform-tmp-ids bxt/tx-xform-tmp-ids)
-(def ^:nodoc tx-xform-upsert bxt/tx-xform-upsert)
-(def ^:nodoc tx-xform-unique bxt/tx-xform-unique)
-(def ^:nodoc tx-xform-main bxt/tx-xform-main)
-(def ^:nodoc default-tx-transformers bxt/default-tx-transformers)
+  (apply xtdb-lookup-id-all db kvs))
 
 (defn biff-tx->xt
   "Converts the given Biff transaction into an XT transaction.
@@ -567,7 +576,7 @@
 
   See https://biffweb.com/docs/reference/transactions."
   [{:keys [biff/now biff/db biff/malli-opts] :as ctx} biff-tx]
-  (bxt/biff-tx->xt ctx biff-tx))
+  (xtdb-biff-tx->xt ctx biff-tx))
 
 (defn submit-with-retries
   "Submits an XT transaction, retrying up to three times if there is contention.
@@ -577,7 +586,7 @@
   XT transaction. The :biff/db and :biff/now keys in ctx will be updated before
   each time make-tx is called."
   [ctx make-tx]
-  (bxt/submit-with-retries ctx make-tx))
+  (xtdb-submit-with-retries ctx make-tx))
 
 (defn submit-tx
   "High-level wrapper over xtdb.api/submit-tx. See biff-tx->xt.
@@ -587,7 +596,7 @@
     :or {retry true}
     :as ctx}
    biff-tx]
-  (bxt/submit-tx ctx biff-tx))
+  (xtdb-submit-tx ctx biff-tx))
 
 (defn save-tx-fns!
   "Saves (or updates) the given transaction functions.
@@ -598,10 +607,11 @@
   If all the given functions are already in the database and haven't been
   changed, then no transaction will be submitted."
   [node tx-fns]
-  (bxt/save-tx-fns! node tx-fns))
+  (xtdb-save-tx-fns! node tx-fns))
 
-(def tx-fns
-  "A map of Biff-provided transaction functions. See use-xt and save-tx-fns!
+(defn tx-fns []
+  "A function returning a map of Biff-provided transaction functions. See use-xt
+  and save-tx-fns!
 
   Includes the following tx fns:
 
@@ -614,7 +624,7 @@
       :xt/id user-id
       :user/name \"example\"}
      [:xtdb.api/fn :biff/ensure-unique {:user/name \"example\"}]])"
-  bxt/tx-fns)
+  (xtdb-tx-fns))
 
 ;;;; Rum
 
@@ -799,7 +809,9 @@
     :or {host "localhost"
          port 8080}
     :as ctx}]
-  (misc/use-jetty ctx))
+  (let [ctx' (fn [req]
+               (handler (merge req (xtdb-merge-context ctx))))]
+    (misc/use-jetty ctx')))
 
 (defn jwt-encrypt
   "Convenience wrapper for buddy.sign.jwt/encrypt.
@@ -835,7 +847,12 @@
     {:tasks [{:task (fn [ctx] (println \"hello there\"))
               :schedule (iterate #(biff/add-seconds % 60) (java.util.Date.))}]})"
   [{:keys [biff/plugins biff/features biff.chime/tasks] :as ctx}]
-  (misc/use-chime ctx))
+  (let [task-with-xtdb (fn [t ctx] (t (merge ctx (xtdb-merge-context ctx))))
+        ctx' (update ctx :biff.chime/tasks
+                     (fn [tsks]
+                       (map (fn [t] (assoc t :task #(task-with-xtdb t %)))
+                            tsks)))]
+    (misc/use-chime ctx')))
 
 (defn mailersend
   "Sends an email with MailerSend.
@@ -1031,6 +1048,10 @@
   (q/submit-job-for-result ctx queue-id job))
 
 ;;;; Authentication
+
+(defn auth-plugin [& args] (apply (requiring-resolve 'com.biffweb.impl.auth/plugin) args))
+(defn auth-recaptcha-disclosure [& args] (apply (requiring-resolve 'com.biffweb.impl.auth/recaptcha-disclosure) args))
+(defn auth-recaptcha-callback [& args] (apply (requiring-resolve 'com.biffweb.impl.auth/recaptcha-callback) args))
 
 (defn authentication-plugin
   "A Biff plugin that includes backend routes for passwordless authentication.
@@ -1266,19 +1287,19 @@
 
   Removes the :uid from the user's session. Redirects to /."
   [options]
-  (auth/plugin options))
+  (auth-plugin options))
 
-(def recaptcha-disclosure
+(defn recaptcha-disclosure []
   "A [:div ...] element that contains a disclosure statement, which should be
   shown on pages that include a Recaptcha test."
-  auth/recaptcha-disclosure)
+  (auth-recaptcha-disclosure))
 
 (defn recaptcha-callback
   "Returns a [:script ...] element which defines a Javascript function, for use
   as a callback with Recaptcha. The callback function submits the form with the
   given ID."
   [fn-name form-id]
-  (auth/recaptcha-callback fn-name form-id))
+  (auth-recaptcha-callback fn-name form-id))
 
 (defn- write-doc-data [dest]
   (let [sections (->> (with-open [r (io/reader (io/resource "com/biffweb.clj"))]
@@ -1310,5 +1331,4 @@
     (io/copy (io/file "new-project.clj")
              (io/file resources-dir "new-project.clj_"))
     (print (sh "rsync" "-av" "--delete" "docs/" (str (io/file resources-dir "docs") "/")))
-    (print (sh "bb" "soft-deploy" :dir "/home/jacob/dev/platypub"))
-    ))
+    (print (sh "bb" "soft-deploy" :dir "/home/jacob/dev/platypub"))))

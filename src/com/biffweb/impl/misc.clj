@@ -7,7 +7,6 @@
             [clojure.tools.logging :as log]
             [com.biffweb.impl.time :as time]
             [com.biffweb.impl.util :as util]
-            [com.biffweb.impl.xtdb :as bxt]
             [hawk.core :as hawk]
             [nextjournal.beholder :as beholder]
             [reitit.ring :as reitit-ring]
@@ -67,8 +66,7 @@
                   :or {host "localhost"
                        port 8080}
                   :as ctx}]
-  (let [server (jetty/run-jetty (fn [req]
-                                  (handler (merge (bxt/merge-context ctx) req)))
+  (let [server (jetty/run-jetty (fn [req] (handler (merge req ctx)))
                                 {:host host
                                  :port port
                                  :join? false
@@ -116,7 +114,7 @@
 (defn use-chime
   [{:keys [biff/features biff/plugins biff.chime/tasks] :as ctx}]
   (reduce (fn [ctx {:keys [schedule task error-handler]}]
-            (let [f (fn [_] (task (bxt/merge-context ctx)))
+            (let [f (fn [_] (task ctx))
                   opts (when error-handler {:error-handler error-handler})
                   scheduler (chime/chime-at (schedule) f opts)]
               (update ctx :biff/stop conj #(.close scheduler))))

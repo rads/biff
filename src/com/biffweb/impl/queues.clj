@@ -1,17 +1,18 @@
 (ns com.biffweb.impl.queues
-  (:require [com.biffweb.impl.xtdb :as bxt]
-            [com.biffweb.impl.util :as util])
+  (:require [com.biffweb.impl.util :as util])
   (:import [java.util.concurrent
             PriorityBlockingQueue
             TimeUnit
             Executors
             Callable]))
 
+(defn xtdb-merge-context [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/merge-context) args))
+
 (defn- consume [ctx {:keys [queue consumer continue]}]
   (while @continue
     (when-some [job (.poll queue 1 TimeUnit/SECONDS)]
       (util/catchall-verbose
-       (consumer (merge (bxt/merge-context ctx)
+       (consumer (merge (xtdb-merge-context ctx)
                         {:biff/job job
                          :biff/queue queue})))
       (flush))))

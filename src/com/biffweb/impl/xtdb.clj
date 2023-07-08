@@ -409,7 +409,7 @@
                            (assoc :biff/now (java.util.Date.))
                            (biff-tx->xt biff-tx)))))
 
-(def tx-fns
+(defn tx-fns []
   {:biff/ensure-unique
    '(fn [ctx kvs]
       (let [kvs (for [[i [k v]] (map-indexed vector kvs)

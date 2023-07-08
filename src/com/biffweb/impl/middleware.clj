@@ -2,7 +2,6 @@
   (:require [clojure.string :as str]
             [clojure.tools.logging :as log]
             [com.biffweb.impl.util :as util]
-            [com.biffweb.impl.xtdb :as bxt]
             [muuntaja.middleware :as muuntaja]
             [ring.middleware.anti-forgery :as anti-forgery]
             [ring.middleware.content-type :refer [wrap-content-type]]
@@ -12,6 +11,8 @@
             [ring.middleware.session.cookie :as cookie]
             [ring.middleware.ssl :as ssl]
             [rum.core :as rum]))
+
+(defn xtdb-merge-context [& args] (apply (requiring-resolve 'com.biffweb.impl.xtdb/merge-context) args))
 
 (defn wrap-debug [handler]
   (fn [ctx]
@@ -185,7 +186,7 @@
 
 (defn use-wrap-ctx [{:keys [biff/handler] :as ctx}]
   (assoc ctx :biff/handler (fn [req]
-                             (handler (merge (bxt/merge-context ctx) req)))))
+                             (handler (merge (xtdb-merge-context ctx) req)))))
 
 ;;; Deprecated
 
@@ -231,7 +232,7 @@
   "Deprecated"
   [handler ctx]
   (fn [req]
-    (handler (merge (bxt/merge-context ctx) req))))
+    (handler (merge (xtdb-merge-context ctx) req))))
 
 (defn wrap-inner-defaults
   "Deprecated"
