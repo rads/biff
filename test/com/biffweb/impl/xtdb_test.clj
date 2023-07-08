@@ -1,5 +1,6 @@
 (ns com.biffweb.impl.xtdb-test
   (:require [clojure.test :refer [deftest is]]
+            [com.biffweb.impl.xtdb :as bxt]
             [xtdb.api :as xt]
             [com.biffweb :as biff]
             [malli.core :as malc]
@@ -39,7 +40,7 @@
            (for [d docs]
              [::xt/put (merge {:xt/id (random-uuid)}
                               d)])
-           (for [[k f] biff/tx-fns]
+           (for [[k f] (biff/tx-fns)]
              [::xt/put {:xt/id k :xt/fn f}]))))))
     node))
 
@@ -57,10 +58,15 @@
                                :foo "baz"}]
                     [::xt/fn :biff/ensure-unique {:foo "bar"}]]))))))
 
+(def ^:nodoc tx-xform-tmp-ids bxt/tx-xform-tmp-ids)
+(def ^:nodoc tx-xform-upsert bxt/tx-xform-upsert)
+(def ^:nodoc tx-xform-unique bxt/tx-xform-unique)
+(def ^:nodoc tx-xform-main bxt/tx-xform-main)
+
 (deftest tx-upsert
   (with-open [node (test-node [{:xt/id :id/foo
                                 :foo "bar"}])]
-    (is (= (biff/tx-xform-upsert
+    (is (= (tx-xform-upsert
             {:biff/db (xt/db node)}
             [{:db/doc-type :user
               :db.op/upsert {:foo "bar"}
@@ -70,7 +76,7 @@
               :foo "bar",
               :db/op :merge,
               :xt/id :id/foo})))
-    (is (= (biff/tx-xform-upsert
+    (is (= (tx-xform-upsert
             {:biff/db (xt/db node)}
             [{:db/doc-type :user
               :db.op/upsert {:foo "eh"}
@@ -83,7 +89,7 @@
              [:xtdb.api/fn :biff/ensure-unique {:foo "eh"}])))))
 
 (deftest tx-unique
-  (is (= (biff/tx-xform-unique
+  (is (= (tx-xform-unique
           nil
           [{:foo "bar"
             :baz [:db/unique "quux"]
@@ -96,7 +102,7 @@
 
 (deftest tx-tmp-ids
   (let [[{:keys [a b c]}
-         {:keys [d]}] (biff/tx-xform-tmp-ids
+         {:keys [d]}] (tx-xform-tmp-ids
                        nil
                        [{:a 1
                          :b :db.id/foo

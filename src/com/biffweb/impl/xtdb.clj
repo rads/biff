@@ -1,26 +1,41 @@
 (ns com.biffweb.impl.xtdb
   (:require [better-cond.core :as b]
+            [borkdude.dynaload :refer [dynaload]]
             [com.biffweb.impl.util :as util]
             [com.biffweb.impl.util.ns :as ns]
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.tools.logging :as log]
             [clojure.walk :as walk]
-            [xtdb.api :as xt]
+            [xtdb.api :as-alias xt]
             [malli.error :as male]
             [malli.core :as malc]))
 
+(def xtdb-submit-tx (dynaload 'xtdb.api/submit-tx))
+(def xtdb-latest-completed-tx (dynaload 'xtdb.api/latest-completed-tx))
+(def xtdb-db (dynaload 'xtdb.api/db))
+(def xtdb-entity (dynaload 'xtdb.api/entity))
+(def xtdb-start-node (dynaload 'xtdb.api/start-node))
+(def xtdb-sync (dynaload 'xtdb.api/sync))
+(def xtdb-listen (dynaload 'xtdb.api/listen))
+(def xtdb-open-tx-log (dynaload 'xtdb.api/open-tx-log))
+(def xtdb-with-tx (dynaload 'xtdb.api/with-tx))
+(def xtdb-tx-committed? (dynaload 'xtdb.api/tx-committed?))
+(def xtdb-await-tx (dynaload 'xtdb.api/await-tx))
+(def xtdb-q (dynaload 'xtdb.api/q))
+(def xtdb-open-q (dynaload 'xtdb.api/open-q))
+
 (defn save-tx-fns! [node tx-fns]
-  (let [db (xt/db node)]
+  (let [db (xtdb-db node)]
     (when-some [tx (not-empty
                     (vec
                      (for [[k f] tx-fns
                            :let [new-doc {:xt/id k
                                           :xt/fn f}
-                                 old-doc (xt/entity db k)]
+                                 old-doc (xtdb-entity db k)]
                            :when (not= new-doc old-doc)]
                        [::xt/put new-doc])))]
-      (xt/submit-tx node tx))))
+      (xtdb-submit-tx node tx))))
 
 (defn start-node
   [{:keys [topology dir opts jdbc-spec pool-opts kv-store tx-fns]
@@ -31,7 +46,7 @@
                                                  'xtdb.rocksdb/->kv-store)
                                   :db-dir (io/file dir (str basename (when (= kv-store :lmdb)
                                                                        "-lmdb")))}})
-        node (xt/start-node
+        node (xtdb-start-node
               (merge (case topology
                        :standalone
                        {:xtdb/index-store    (kv-store-fn "index")
@@ -49,10 +64,10 @@
                         :xtdb/document-store {:xtdb/module 'xtdb.jdbc/->document-store
                                               :connection-pool :xtdb.jdbc/connection-pool}})
                      opts))
-        f (future (xt/sync node))]
+        f (future (xtdb-sync node))]
     (while (not (realized? f))
       (Thread/sleep 2000)
-      (when-some [indexed (xt/latest-completed-tx node)]
+      (when-some [indexed (xtdb-latest-completed-tx node)]
         (log/info "Indexed" (pr-str indexed))))
     (when (not-empty tx-fns)
       (save-tx-fns! node tx-fns))
@@ -77,7 +92,7 @@
         (update :biff/stop conj #(.close node)))))
 
 (defn assoc-db [{:keys [biff.xtdb/node] :as ctx}]
-  (assoc ctx :biff/db (xt/db node)))
+  (assoc ctx :biff/db (xtdb-db node)))
 
 (defn merge-context [{:keys [biff/merge-context-fn]
                       :or {merge-context-fn assoc-db}
@@ -98,15 +113,15 @@
                         (util/catchall-verbose
                          (on-tx ctx tx)))))
           lock (Object.)
-          listener (xt/listen
+          listener (xtdb-listen
                     node
                     {::xt/event-type ::xt/indexed-tx}
                     (fn [{:keys [::xt/tx-id committed?]}]
                       (when committed?
                         (locking lock
-                          (with-open [log (xt/open-tx-log node
-                                                          (dec tx-id)
-                                                          true)]
+                          (with-open [log (xtdb-open-tx-log node
+                                                            (dec tx-id)
+                                                            true)]
                             (let [tx (first (iterator-seq log))]
                               (try
                                 (on-tx (merge-context ctx) tx)
@@ -126,7 +141,7 @@
   (let [return-tuples (vector? (:find query))
         query (cond-> query
                 (not return-tuples) (update :find vector))
-        results (apply xt/q db query args)]
+        results (apply xtdb-q db query args)]
     (cond->> results
       (not return-tuples) (map first))))
 
@@ -145,7 +160,7 @@
         return-tuples (vector? (:find query))
         query (cond-> query
                 (not return-tuples) (update :find vector))]
-    (with-open [results (apply xt/open-q db query query-args)]
+    (with-open [results (apply xtdb-open-q db query query-args)]
       (f (cond->> (iterator-seq results)
            (not return-tuples) (map first))))))
 
@@ -218,7 +233,7 @@
                                           (= :db/lookup (first doc-id)))
                                  (rest doc-id))]
   :when lookup-id
-  :let [lookup-doc-before (xt/entity db lookup-id)
+  :let [lookup-doc-before (xtdb-entity db lookup-id)
         lookup-doc-after (or lookup-doc-before
                              {:xt/id lookup-id
                               :db/owned-by (or default-id (java.util.UUID/randomUUID))})]
@@ -267,7 +282,7 @@
   (= op :put) (concat [[::xt/put doc-after]] lookup-ops)
 
   ;; possible ops: create, merge, update
-  :let [doc-before (xt/entity db id)]
+  :let [doc-before (xtdb-entity db id)]
   :do (cond
         (not= op :create) nil,
 
@@ -382,16 +397,16 @@
         _ (when (and (some (fn [[op]]
                              (= op ::xt/fn))
                            tx)
-                     (nil? (xt/with-tx db tx)))
+                     (nil? (xtdb-with-tx db tx)))
             (throw (ex-info "Transaction violated a constraint" {:tx tx})))
         submitted-tx (when (not-empty tx)
-                       (xt/submit-tx node tx))
+                       (xtdb-submit-tx node tx))
         ms (int (rand (* 1000 (Math/pow 2 n-tried))))]
     (when submitted-tx
-      (xt/await-tx node submitted-tx))
+      (xtdb-await-tx node submitted-tx))
     (cond
       (or (nil? submitted-tx)
-          (xt/tx-committed? node submitted-tx)) submitted-tx
+          (xtdb-tx-committed? node submitted-tx)) submitted-tx
       (<= 4 n-tried) (throw (ex-info "TX failed, too much contention." {:tx tx}))
       :else (do
               (log/warnf "TX failed due to contention, trying again in %d ms...\n"
@@ -405,9 +420,9 @@
                   :as ctx} biff-tx]
   (if retry
     (submit-with-retries ctx #(biff-tx->xt % biff-tx))
-    (xt/submit-tx node (-> (assoc-db ctx)
-                           (assoc :biff/now (java.util.Date.))
-                           (biff-tx->xt biff-tx)))))
+    (xtdb-submit-tx node (-> (assoc-db ctx)
+                             (assoc :biff/now (java.util.Date.))
+                             (biff-tx->xt biff-tx)))))
 
 (def tx-fns
   {:biff/ensure-unique

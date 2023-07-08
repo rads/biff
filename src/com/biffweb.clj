@@ -8,10 +8,10 @@
             [com.biffweb.impl.queues :as q]
             [com.biffweb.impl.rum :as brum]
             [com.biffweb.impl.time :as time]
+            [com.biffweb.impl.xtdb :as bxt]
             [com.biffweb.impl.util :as util]
             [com.biffweb.impl.util.ns :as ns]
-            [com.biffweb.impl.util.reload :as reload]
-            [com.biffweb.impl.xtdb :as bxt]))
+            [com.biffweb.impl.util.reload :as reload]))
 
 ;;;; Util
 
@@ -799,7 +799,9 @@
     :or {host "localhost"
          port 8080}
     :as ctx}]
-  (misc/use-jetty ctx))
+  (let [ctx' (fn [req]
+               (handler (merge req (bxt/merge-context ctx))))]
+    (misc/use-jetty ctx')))
 
 (defn jwt-encrypt
   "Convenience wrapper for buddy.sign.jwt/encrypt.
@@ -835,7 +837,12 @@
     {:tasks [{:task (fn [ctx] (println \"hello there\"))
               :schedule (iterate #(biff/add-seconds % 60) (java.util.Date.))}]})"
   [{:keys [biff/plugins biff/features biff.chime/tasks] :as ctx}]
-  (misc/use-chime ctx))
+  (let [task-with-xtdb (fn [t ctx] (t (merge ctx (bxt/merge-context ctx))))
+        ctx' (update ctx :biff.chime/tasks
+                     (fn [tsks]
+                       (map (fn [t] (assoc t :task #(task-with-xtdb t %)))
+                            tsks)))]
+    (misc/use-chime ctx')))
 
 (defn mailersend
   "Sends an email with MailerSend.
